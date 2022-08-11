@@ -8,15 +8,7 @@ pub enum Type {
     Int,
     Bool,
     String,
-    Unit,
-    Tuple(Vec<Type>),
-    Function(Box<Type>, Box<Type>),
-}
-
-impl Type {
-    fn function(arg: Type, ret: Type) -> Type {
-        Type::Function(Box::new(arg), Box::new(ret))
-    }
+    Function(Vec<Type>, Vec<Type>),
 }
 
 struct TypeChecker {
@@ -26,8 +18,19 @@ struct TypeChecker {
 
 impl TypeChecker {
     fn new() -> Self {
+        let mut environment: HashMap<String, Type> = HashMap::new();
+        environment.insert("+".to_string(), Type::Function(vec![Type::Int, Type::Int], vec![Type::Int]));
+        environment.insert("-".to_string(), Type::Function(vec![Type::Int, Type::Int], vec![Type::Int]));
+        environment.insert("*".to_string(), Type::Function(vec![Type::Int, Type::Int], vec![Type::Int]));
+        environment.insert("/".to_string(), Type::Function(vec![Type::Int, Type::Int], vec![Type::Int]));
+        environment.insert("<".to_string(), Type::Function(vec![Type::Int, Type::Int], vec![Type::Bool]));
+        environment.insert(">".to_string(), Type::Function(vec![Type::Int, Type::Int], vec![Type::Bool]));
+        environment.insert("=".to_string(), Type::Function(vec![Type::Int, Type::Int], vec![Type::Bool]));
+        environment.insert("not".to_string(), Type::Function(vec![Type::Bool], vec![Type::Bool]));
+        environment.insert("and".to_string(), Type::Function(vec![Type::Bool, Type::Bool], vec![Type::Bool]));
+        environment.insert("or".to_string(), Type::Function(vec![Type::Bool, Type::Bool], vec![Type::Bool]));
         Self {
-            environment: HashMap::new(),
+            environment,
             param_count: 0,
         }
     }
@@ -54,7 +57,7 @@ impl TypeChecker {
                 if in_type_errors.len() > 0 || out_type_errors.len() > 0 {
                     return Err(Error::TypeError("Error in function type".to_string(), token.clone(), ));
                 }
-                Ok(Type::function(Type::Tuple(in_types), Type::Tuple(out_types)))
+                Ok(Type::Function(in_types, out_types))
             },
             TypeAnnotation::Identifier(name, _) if name == "Int" => Ok(Type::Int),
             TypeAnnotation::Identifier(name, _) if name == "Bool" => Ok(Type::Bool),
@@ -97,54 +100,46 @@ impl TypeChecker {
                 Type::Int => out_stack.push(t),
                 Type::Bool => out_stack.push(t),
                 Type::String => out_stack.push(t),
-                Type::Unit => { /* no-op */ }
-                Type::Tuple(ts) => out_stack.extend(ts),
-                Type::Function(t_in, t_out) => {
-                    let mut expected_in: Vec<Type> = Vec::new();
-                    match *t_in {
-                        Type::Param(_) => expected_in.push(*t_in),
-                        Type::Int => expected_in.push(*t_in),
-                        Type::Bool => expected_in.push(*t_in),
-                        Type::String => expected_in.push(*t_in),
-                        Type::Unit => { /* no-op */ }
-                        Type::Tuple(ts) => expected_in.extend(ts),
-                        Type::Function(_, _) => expected_in.push(*t_in),
-                    }
-                    for el in expected_in.into_iter().rev() {
+                Type::Function(t_in, mut t_out) => {
+                    for t_expected in t_in.into_iter().rev() {
                         if out_stack.len() == 0 {
-                            in_stack.push(el);
+                            in_stack.push(t_expected);
                         } else {
-                            out_stack.pop(); // TODO: Error if invalid value
+                            let t_actual = out_stack.pop().unwrap();
+                            if let Type::Param(n_expected) = t_expected {
+                                if let Type::Param(n_actual) = t_actual {
+                                    t_out.iter_mut().for_each(|el| {
+                                        match el {
+                                            Type::Param(n) if n == &n_expected => {
+                                                *el = Type::Param(n_actual);
+                                            },
+                                            _ => {},
+                                        }
+                                    });
+                                }
+                            }
                         }
                     }
-                    match *t_out {
-                        Type::Param(_) => out_stack.push(*t_out),
-                        Type::Int => out_stack.push(*t_out),
-                        Type::Bool => out_stack.push(*t_out),
-                        Type::String => out_stack.push(*t_out),
-                        Type::Unit => { /* no-op */ }
-                        Type::Tuple(ts) => out_stack.extend(ts),
-                        Type::Function(_, _) => out_stack.push(*t_out),
-                    }
+                    out_stack.extend(t_out.into_iter());
                 }
             }
         }
-        Ok(Type::function(Type::Tuple(in_stack), Type::Tuple(out_stack)))
+        Ok(Type::Function(in_stack, out_stack))
     }
 
     fn check_factor(&mut self, factor: &Factor) -> Result<Type, Error> {
         match factor {
             Factor::Dup(_) => {
                 let t = self.new_param();
-                Ok(Type::function(t.clone(), t))
+                Ok(Type::Function(vec![t.clone()], vec![t.clone(), t]))
             },
             Factor::Drop(_) => {
                 let t = self.new_param();
-                Ok(Type::function(t, Type::Unit))
+                Ok(Type::Function(vec![t], vec![]))
             },
             Factor::Quote(_) => {
                 let t = self.new_param();
-                Ok(Type::function(t.clone(), Type::function(Type::Unit, t)))
+                Ok(Type::Function(vec![t.clone()], vec![Type::Function(vec![], vec![t])]))
             },
             Factor::Call(_) => {
                 unimplemented!()
@@ -155,20 +150,20 @@ impl TypeChecker {
             Factor::Swap(_) => {
                 let a = self.new_param();
                 let b = self.new_param();
-                Ok(Type::function(Type::function(a.clone(), b.clone()), Type::function(b, a)))
+                Ok(Type::Function(vec![a.clone(), b.clone()], vec![b, a]))
             },
             Factor::Ifte(_) => {
                 let t_in = self.new_param();
                 let t_out = self.new_param();
-                let t_condition = Type::function(t_in, Type::Bool);
-                let t_body = Type::function(Type::Bool, t_out.clone());
-                let t_input = Type::Tuple(vec![t_condition, t_body.clone(), t_body.clone()]);
-                let t_output = Type::Tuple(vec![t_out]);
-                Ok(Type::function(t_input, t_output))
+                let t_condition = Type::Function(vec![t_in], vec![Type::Bool]);
+                let t_body = Type::Function(vec![Type::Bool], vec![t_out.clone()]);
+                let t_input = vec![t_condition, t_body.clone(), t_body.clone()];
+                let t_output = vec![t_out];
+                Ok(Type::Function(t_input, t_output))
             },
-            Factor::Int(_, _) => Ok(Type::function(Type::Unit, Type::Int)),
-            Factor::Bool(_, _) => Ok(Type::function(Type::Unit, Type::Bool)),
-            Factor::String(_, _) => Ok(Type::function(Type::Unit, Type::String)),
+            Factor::Int(_, _) => Ok(Type::Function(vec![], vec![Type::Int])),
+            Factor::Bool(_, _) => Ok(Type::Function(vec![], vec![Type::Bool])),
+            Factor::String(_, _) => Ok(Type::Function(vec![], vec![Type::String])),
             Factor::Identifier(name, token) => {
                 if !self.environment.contains_key(name) {
                     return Err(Error::TypeError(format!("Unknown identifier {}", name), token.clone()));
@@ -185,6 +180,7 @@ impl TypeChecker {
 #[cfg(test)]
 mod tests {
     use crate::parser::parse;
+    use super::{Type};
 
     #[test]
     fn recognizes_unknown_identifiers() {
@@ -205,5 +201,55 @@ mod tests {
         let input = parse("[dup drop dup]").unwrap();
         let mut typechecker = super::TypeChecker::new();
         typechecker.check(&input).unwrap();
+    }
+
+    #[test]
+    fn gets_correct_simple_type() {
+        let input = parse("1 2 +").unwrap();
+        let mut typechecker = super::TypeChecker::new();
+        let t = typechecker.check_cycle(&input[0]).unwrap();
+        match t {
+            super::Type::Function(ref t_in, ref t_out) => {
+                assert_eq!(t_in.len(), 0);
+                assert_eq!(t_out.len(), 1);
+                assert_eq!(t_out[0], super::Type::Int);
+            }
+            _ => panic!("Expected Function"),
+        }
+    }
+
+    #[test]
+    fn gets_correct_param_types() {
+        let input = parse("[dup drop dup]").unwrap();
+        let mut typechecker = super::TypeChecker::new();
+        let t = typechecker.check_cycle(&input[0]).unwrap();
+        match t {
+            super::Type::Function(ref t_in, ref t_out) => {
+                assert_eq!(t_in.len(), 1);
+                assert_eq!(t_in[0], super::Type::Param(0));
+                assert_eq!(t_out.len(), 2);
+                assert_eq!(t_out[0], super::Type::Param(0));
+                assert_eq!(t_out[1], super::Type::Param(0));
+            }
+            _ => panic!("Expected Function"),
+        }
+    }
+
+    #[test]
+    fn gets_correct_param_types_complicated() {
+        let input = parse("[ifte dup drop]").unwrap();
+        let mut typechecker = super::TypeChecker::new();
+        let t = typechecker.check_cycle(&input[0]).unwrap();
+        match t {
+            Type::Function(ref t_in, ref t_out) => {
+                assert_eq!(t_in.len(), 3);
+                assert_eq!(t_in[0], Type::Function(vec![Type::Param(0)], vec![Type::Bool]));
+                assert_eq!(t_in[1], Type::Function(vec![Type::Bool], vec![Type::Param(1)]));
+                assert_eq!(t_in[2], Type::Function(vec![Type::Bool], vec![Type::Param(1)]));
+                assert_eq!(t_out.len(), 1);
+                assert_eq!(t_out[0], Type::Param(1));
+            }
+            _ => panic!("Expected Function"),
+        }
     }
 }
