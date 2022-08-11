@@ -219,8 +219,6 @@ pub fn parse(string: &str) -> Result<Vec<Cycle>, Error> {
 
 #[cfg(test)]
 mod tests {
-    use crate::scanner::{scan};
-
     #[test]
     fn parses_simple_addition() {
         let cycles = super::parse("1 2 +").unwrap();

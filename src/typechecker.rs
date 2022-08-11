@@ -166,9 +166,9 @@ impl TypeChecker {
                 let t_output = Type::Tuple(vec![t_out]);
                 Ok(Type::function(t_input, t_output))
             },
-            Factor::Int(value, _) => Ok(Type::function(Type::Unit, Type::Int)),
-            Factor::Bool(value, _) => Ok(Type::function(Type::Unit, Type::Bool)),
-            Factor::String(value, _) => Ok(Type::function(Type::Unit, Type::String)),
+            Factor::Int(_, _) => Ok(Type::function(Type::Unit, Type::Int)),
+            Factor::Bool(_, _) => Ok(Type::function(Type::Unit, Type::Bool)),
+            Factor::String(_, _) => Ok(Type::function(Type::Unit, Type::String)),
             Factor::Identifier(name, token) => {
                 if !self.environment.contains_key(name) {
                     return Err(Error::TypeError(format!("Unknown identifier {}", name), token.clone()));
