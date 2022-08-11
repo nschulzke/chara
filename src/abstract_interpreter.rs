@@ -115,32 +115,8 @@ impl AbstractInterpreter {
                             }
                         }
                         Type::Function(t_in, t_out) => {
-                            let mut new_in = Vec::new();
-                            for t in t_in.into_iter() {
-                                match t {
-                                    Type::Param(param) => {
-                                        if let Some(t) = learned.get(&param) {
-                                            new_in.push(t.clone());
-                                        }
-                                    }
-                                    t => {
-                                        new_in.push(t);
-                                    }
-                                }
-                            }
-                            let mut new_out = Vec::new();
-                            for t in t_out.into_iter() {
-                                match t {
-                                    Type::Param(param) => {
-                                        if let Some(t) = learned.get(&param) {
-                                            new_out.push(t.clone());
-                                        }
-                                    }
-                                    t => {
-                                        new_out.push(t);
-                                    }
-                                }
-                            }
+                            let new_in = Self::substitute_learned(&mut learned, t_in);
+                            let new_out = Self::substitute_learned(&mut learned, t_out);
                             self.push(Type::Function(new_in, new_out));
                         }
                         _ => {
@@ -158,27 +134,21 @@ impl AbstractInterpreter {
         }
     }
 
-    fn concat_function(interpreter: &mut AbstractInterpreter, t_in: Vec<Type>, mut t_out: Vec<Type>) {
-        for t_expected in t_in.into_iter().rev() {
-            if interpreter.out_stack.len() == 0 {
-                interpreter.in_stack.push(t_expected);
-            } else {
-                let t_actual = interpreter.out_stack.pop().unwrap();
-                if let Type::Param(n_expected) = t_expected {
-                    if let Type::Param(n_actual) = t_actual {
-                        t_out.iter_mut().for_each(|el| {
-                            match el {
-                                Type::Param(n) if n == &n_expected => {
-                                    *el = Type::Param(n_actual);
-                                },
-                                _ => {},
-                            }
-                        });
+    fn substitute_learned(learned: &mut HashMap<usize, Type>, t: Vec<Type>) -> Vec<Type> {
+        let mut new = Vec::new();
+        for t in t.into_iter() {
+            match t {
+                Type::Param(param) => {
+                    if let Some(t) = learned.get(&param) {
+                        new.push(t.clone());
                     }
+                }
+                t => {
+                    new.push(t);
                 }
             }
         }
-        interpreter.out_stack.extend(t_out.into_iter());
+        new
     }
 }
 
