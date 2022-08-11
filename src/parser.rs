@@ -33,7 +33,7 @@ pub enum TypeAnnotation {
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Cycle {
-    Definition(String, TypeAnnotation, Factor),
+    Definition(String, TypeAnnotation, Vec<Factor>),
     Term(Vec<Factor>),
 }
 
@@ -64,7 +64,7 @@ impl Parser {
 
     fn is_valid_identifier(token: &Token) -> bool {
         !token.value.contains(|c| match c {
-            '{' | '}' | '(' | ')' | '[' | ']' | '.' | ',' | ';' | ':' => true,
+            '{' | '}' | '(' | ')' | '[' | ']' | '.' | ',' | ';' | ':' | '"' => true,
             _ => false,
         })
     }
@@ -83,7 +83,7 @@ impl Parser {
     }
 
     /// Parse a definition.
-    /// definition ::= "def" identifier ":" type "=" factor "."
+    /// definition ::= "def" identifier ":" type "=" factor ";"
     fn parse_definition(&mut self) -> Result<Cycle, Error> {
         let def = self.next().ok_or(Error::UnexpectedEndOfFile(format!("Unexpected EOF, expected def")))?;
         if def.value != "def" {
@@ -102,8 +102,12 @@ impl Parser {
         if equals.value != "=" {
             return Err(Error::UnexpectedToken("=".to_string(), equals));
         }
-        let factor = self.parse_factor()?;
-        Ok(Cycle::Definition(name.value, type_, factor))
+        let term = self.parse_term()?;
+        let semi = self.next().ok_or(Error::UnexpectedEndOfFile(format!("Unexpected EOF, expected ;")))?;
+        if semi.value != ";" {
+            return Err(Error::UnexpectedToken(";".to_string(), semi));
+        }
+        Ok(Cycle::Definition(name.value, type_, term))
     }
 
     /// Parse a type annotation
@@ -154,8 +158,13 @@ impl Parser {
     /// term ::= { factor }
     fn parse_term(&mut self) -> Result<Vec<Factor>, Error> {
         let mut factors = Vec::new();
-        while let Ok(factor) = self.parse_factor() {
-            factors.push(factor);
+        loop {
+            let factor = self.parse_factor();
+            match factor {
+                Ok(factor) => factors.push(factor),
+                Err(Error::EndOfTerm) => break,
+                Err(err) => return Err(err),
+            }
         }
         Ok(factors)
     }
@@ -165,7 +174,7 @@ impl Parser {
     ///          "[" term "]"
     ///        | integer_literal | boolean_literal | string_literal | identifier | "(" term ")"
     fn parse_factor(&mut self) -> Result<Factor, Error> {
-        let token = self.peek().ok_or(Error::UnexpectedEndOfFile(format!("Unexpected EOF, expected factor")))?;
+        let token = self.peek().ok_or(Error::EndOfTerm)?;
         match token.value.as_str() {
             "[" => {
                 let _brace = self.next().unwrap();
@@ -251,21 +260,30 @@ mod tests {
     }
 
     #[test]
+    fn terminates_if_given_a_bad_definition() {
+        let tokens = scan("def a: Int = 1 [").unwrap();
+        let mut parser = super::Parser::new(tokens);
+        let error = parser.parse();
+        assert!(error.is_err());
+    }
+
+    #[test]
     fn parses_definitions() {
         let tokens = scan("def a: Int = 1;").unwrap();
         let mut parser = super::Parser::new(tokens);
         let cycles = parser.parse().unwrap();
         assert_eq!(cycles.len(), 1);
         match cycles[0] {
-            super::Cycle::Definition(ref name, ref annotation, ref factor) => {
+            super::Cycle::Definition(ref name, ref annotation, ref factors) => {
                 assert_eq!(name, "a");
                 match annotation {
                     super::TypeAnnotation::Identifier(s, _) if s == "Int" => {}
                     _ => panic!("Expected Int, got {:?}", annotation),
                 }
-                match factor {
+                assert_eq!(factors.len(), 1);
+                match &factors[0] {
                     super::Factor::Integer(super::Value::Integer(1), _) => {}
-                    _ => panic!("Expected 1, got {:?}", factor),
+                    _ => panic!("Expected 1, got {:?}", factors[0]),
                 }
             }
             _ => panic!("Expected Definition, got {:?}", cycles[0]),
@@ -274,12 +292,12 @@ mod tests {
 
     #[test]
     fn parses_definitions_with_function_types() {
-        let tokens = scan("def a: (Int, String -> Int, String) = [ 1 drop ]").unwrap();
+        let tokens = scan("def a: (Int, String -> Int, String) = 1 drop;").unwrap();
         let mut parser = super::Parser::new(tokens);
         let cycles = parser.parse().unwrap();
         assert_eq!(cycles.len(), 1);
         match cycles[0] {
-            super::Cycle::Definition(ref name, ref annotation, ref factor) => {
+            super::Cycle::Definition(ref name, ref annotation, ref factors) => {
                 assert_eq!(name, "a");
                 match annotation {
                     super::TypeAnnotation::Function(ref in_types, out_types, _, _)
@@ -303,9 +321,14 @@ mod tests {
                     }
                     _ => panic!("Expected Function, got {:?}", annotation),
                 }
-                match factor {
-                    super::Factor::Quotation(_) => {}
-                    _ => panic!("Expected Quotation, got {:?}", factor),
+                assert_eq!(factors.len(), 2);
+                match &factors[0] {
+                    super::Factor::Integer(super::Value::Integer(1), _) => {}
+                    _ => panic!("Expected 1, got {:?}", factors[0]),
+                }
+                match &factors[1] {
+                    super::Factor::Drop(_) => {}
+                    _ => panic!("Expected drop, got {:?}", factors[1]),
                 }
             }
             _ => panic!("Expected Definition, got {:?}", cycles[0]),

@@ -119,30 +119,33 @@ mod tests {
     #[test]
     fn brackets_are_their_own_tokens() {
         let tokens = super::scan("[Hello, world!]").unwrap();
-        assert_eq!(tokens.len(), 4);
+        assert_eq!(tokens.len(), 5);
         assert_eq!(tokens[0].value, "[");
-        assert_eq!(tokens[1].value, "Hello,");
-        assert_eq!(tokens[2].value, "world!");
-        assert_eq!(tokens[3].value, "]");
+        assert_eq!(tokens[1].value, "Hello");
+        assert_eq!(tokens[2].value, ",");
+        assert_eq!(tokens[3].value, "world!");
+        assert_eq!(tokens[4].value, "]");
     }
 
     #[test]
     fn parens_are_their_own_tokens() {
         let tokens = super::scan("(Hello, world!)").unwrap();
-        assert_eq!(tokens.len(), 4);
+        assert_eq!(tokens.len(), 5);
         assert_eq!(tokens[0].value, "(");
-        assert_eq!(tokens[1].value, "Hello,");
-        assert_eq!(tokens[2].value, "world!");
-        assert_eq!(tokens[3].value, ")");
+        assert_eq!(tokens[1].value, "Hello");
+        assert_eq!(tokens[2].value, ",");
+        assert_eq!(tokens[3].value, "world!");
+        assert_eq!(tokens[4].value, ")");
     }
 
     #[test]
     fn braces_are_their_own_tokens() {
         let tokens = super::scan("{Hello, world!}").unwrap();
-        assert_eq!(tokens.len(), 4);
+        assert_eq!(tokens.len(), 5);
         assert_eq!(tokens[0].value, "{");
-        assert_eq!(tokens[1].value, "Hello,");
-        assert_eq!(tokens[2].value, "world!");
-        assert_eq!(tokens[3].value, "}");
+        assert_eq!(tokens[1].value, "Hello");
+        assert_eq!(tokens[2].value, ",");
+        assert_eq!(tokens[3].value, "world!");
+        assert_eq!(tokens[4].value, "}");
     }
 }
