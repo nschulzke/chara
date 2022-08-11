@@ -7,4 +7,5 @@ pub enum Error {
     UnexpectedEndOfFile(String),
     UnexpectedToken(String, Token),
     EndOfTerm,
+    UnknownError,
 }

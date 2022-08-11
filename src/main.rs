@@ -2,6 +2,7 @@ mod error;
 mod parser;
 mod scanner;
 mod typechecker;
+mod abstract_interpreter;
 
 
 fn main() {

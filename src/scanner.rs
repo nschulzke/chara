@@ -7,6 +7,16 @@ pub struct Token {
     pub col: usize,
 }
 
+impl Token {
+    pub fn unknown() -> Token {
+        Token {
+            value: "".to_string(),
+            line: 0,
+            col: 0,
+        }
+    }
+}
+
 pub fn scan(string: &str) -> Result<Vec<Token>, Error> {
     let mut chars = string.chars().enumerate().peekable();
     let mut tokens = Vec::new();
