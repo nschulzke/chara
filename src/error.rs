@@ -4,5 +4,6 @@ use crate::scanner::Token;
 pub enum Error {
     ParseError(String, Token),
     UnexpectedEndOfFile(String),
-    UnexpectedToken(Token),
+    UnexpectedToken(String, Token),
+    EndOfTerm,
 }

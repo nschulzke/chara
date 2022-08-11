@@ -33,7 +33,7 @@ pub fn scan(string: &str) -> Result<Vec<Token>, Error> {
                 }
                 token_start = index + 1;
             }
-            '{' | '}' | '(' | ')' | '[' | ']' | '.' | ';' => {
+            '{' | '}' | '(' | ')' | '[' | ']' | '.' | ',' | ';' | ':' => {
                 // These characters are always tokens by themselves
                 if token_size > 0 {
                     tokens.push(Token {
