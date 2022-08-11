@@ -1,6 +1,7 @@
 mod error;
 mod parser;
 mod scanner;
+mod typechecker;
 
 
 fn main() {

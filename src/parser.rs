@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use crate::error::{Error};
-use crate::scanner::Token;
+use crate::scanner::{scan, Token};
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Value {
@@ -18,8 +18,8 @@ pub enum Factor {
     Cat(Token),    // [A] [B] -> [A B]
     Swap(Token),   // [A] [B] -> [B] [A]
     Ifte(Token),   // S [S -> Bool] [S -> T] [S -> F] -> T|F
-    Integer(Value, Token),
-    Boolean(Value, Token),
+    Int(Value, Token),
+    Bool(Value, Token),
     String(Value, Token),
     Identifier(String, Token),
     Quotation(Vec<Factor>),
@@ -193,9 +193,9 @@ impl Parser {
             "swap" => Ok(Factor::Swap(self.next().unwrap())),
             "ifte" => Ok(Factor::Ifte(self.next().unwrap())),
             _ => match token.value.parse::<i64>() {
-                Ok(i) => Ok(Factor::Integer(Value::Integer(i), self.next().unwrap())),
+                Ok(i) => Ok(Factor::Int(Value::Integer(i), self.next().unwrap())),
                 Err(_) => match token.value.parse::<bool>() {
-                    Ok(b) => Ok(Factor::Boolean(Value::Boolean(b), self.next().unwrap())),
+                    Ok(b) => Ok(Factor::Bool(Value::Boolean(b), self.next().unwrap())),
                     Err(_) => {
                         if Self::is_valid_identifier(&token) {
                             Ok(Factor::Identifier(token.value.to_string(), self.next().unwrap()))
@@ -211,25 +211,29 @@ impl Parser {
     }
 }
 
+pub fn parse(string: &str) -> Result<Vec<Cycle>, Error> {
+    let tokens = scan(string).unwrap();
+    let mut parser = Parser::new(tokens);
+    parser.parse()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::scanner::{scan};
 
     #[test]
     fn parses_simple_addition() {
-        let tokens = scan("1 2 + ").unwrap();
-        let mut parser = super::Parser::new(tokens);
-        let cycles = parser.parse().unwrap();
+        let cycles = super::parse("1 2 +").unwrap();
         assert_eq!(cycles.len(), 1);
         match cycles[0] {
             super::Cycle::Term(ref terms) => {
                 assert_eq!(terms.len(), 3);
                 match terms[0] {
-                    super::Factor::Integer(super::Value::Integer(1), _) => {}
+                    super::Factor::Int(super::Value::Integer(1), _) => {}
                     _ => panic!("Expected 1, got {:?}", terms[0]),
                 }
                 match terms[1] {
-                    super::Factor::Integer(super::Value::Integer(2), _) => {}
+                    super::Factor::Int(super::Value::Integer(2), _) => {}
                     _ => panic!("Expected 2, got {:?}", terms[1]),
                 }
                 match &terms[2] {
@@ -243,9 +247,7 @@ mod tests {
 
     #[test]
     fn parses_strings() {
-        let tokens = scan("\"Hello\"").unwrap();
-        let mut parser = super::Parser::new(tokens);
-        let cycles = parser.parse().unwrap();
+        let cycles = super::parse("\"Hello\"").unwrap();
         assert_eq!(cycles.len(), 1);
         match cycles[0] {
             super::Cycle::Term(ref terms) => {
@@ -261,17 +263,13 @@ mod tests {
 
     #[test]
     fn terminates_if_given_a_bad_definition() {
-        let tokens = scan("def a: Int = 1 [").unwrap();
-        let mut parser = super::Parser::new(tokens);
-        let error = parser.parse();
+        let error = super::parse("def a: Int = 1 [");
         assert!(error.is_err());
     }
 
     #[test]
     fn parses_definitions() {
-        let tokens = scan("def a: Int = 1;").unwrap();
-        let mut parser = super::Parser::new(tokens);
-        let cycles = parser.parse().unwrap();
+        let cycles = super::parse("def a: Int = 1;").unwrap();
         assert_eq!(cycles.len(), 1);
         match cycles[0] {
             super::Cycle::Definition(ref name, ref annotation, ref factors) => {
@@ -282,7 +280,7 @@ mod tests {
                 }
                 assert_eq!(factors.len(), 1);
                 match &factors[0] {
-                    super::Factor::Integer(super::Value::Integer(1), _) => {}
+                    super::Factor::Int(super::Value::Integer(1), _) => {}
                     _ => panic!("Expected 1, got {:?}", factors[0]),
                 }
             }
@@ -292,9 +290,7 @@ mod tests {
 
     #[test]
     fn parses_definitions_with_function_types() {
-        let tokens = scan("def a: (Int, String -> Int, String) = 1 drop;").unwrap();
-        let mut parser = super::Parser::new(tokens);
-        let cycles = parser.parse().unwrap();
+        let cycles = super::parse("def a: (Int, String -> Int, String) = 1 drop;").unwrap();
         assert_eq!(cycles.len(), 1);
         match cycles[0] {
             super::Cycle::Definition(ref name, ref annotation, ref factors) => {
@@ -323,7 +319,7 @@ mod tests {
                 }
                 assert_eq!(factors.len(), 2);
                 match &factors[0] {
-                    super::Factor::Integer(super::Value::Integer(1), _) => {}
+                    super::Factor::Int(super::Value::Integer(1), _) => {}
                     _ => panic!("Expected 1, got {:?}", factors[0]),
                 }
                 match &factors[1] {
