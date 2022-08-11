@@ -33,8 +33,8 @@ pub fn scan(string: &str) -> Result<Vec<Token>, Error> {
                 }
                 token_start = index + 1;
             }
-            '{' | '}' | '(' | ')' | '[' | ']' => {
-                // Brackets are always tokens by themselves
+            '{' | '}' | '(' | ')' | '[' | ']' | '.' | ';' => {
+                // These characters are always tokens by themselves
                 if token_size > 0 {
                     tokens.push(Token {
                         value: string[token_start..index].to_string(),

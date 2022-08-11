@@ -81,20 +81,20 @@ impl Parser {
     // Parse a definition.
     /// definition ::= "def" identifier "=" factor "."
     fn parse_definition(&mut self) -> Result<Cycle, Error> {
-        let def = self.next().ok_or(Error::UnexpectedEndOfFile)?;
+        let def = self.next().ok_or(Error::UnexpectedEndOfFile(format!("Unexpected EOF, expected def")))?;
         if def.value != "def" {
             return Err(Error::UnexpectedToken(def));
         }
-        let name = self.next().ok_or(Error::UnexpectedEndOfFile)?;
+        let name = self.next().ok_or(Error::UnexpectedEndOfFile(format!("Unexpected EOF, expected name")))?;
         if Self::is_valid_identifier(&name) == false {
             return Err(Error::UnexpectedToken(name));
         }
-        let equals = self.next().ok_or(Error::UnexpectedEndOfFile)?;
+        let equals = self.next().ok_or(Error::UnexpectedEndOfFile(format!("Unexpected EOF, expected =")))?;
         if equals.value != "=" {
             return Err(Error::UnexpectedToken(equals));
         }
         let factor = self.parse_factor()?;
-        let dot = self.next().ok_or(Error::UnexpectedEndOfFile)?;
+        let dot = self.next().ok_or(Error::UnexpectedEndOfFile(format!("Unexpected EOF, expected .")))?;
         if dot.value != "." {
             return Err(Error::UnexpectedToken(dot));
         }
@@ -117,12 +117,12 @@ impl Parser {
     ///        | integer_literal | boolean_literal | string_literal | identifier | "(" term ")"
     fn parse_factor(&mut self) -> Result<Factor, Error> {
         self.current += 1;
-        let token = self.next().ok_or(Error::UnexpectedEndOfFile)?;
+        let token = self.next().ok_or(Error::UnexpectedEndOfFile(format!("Unexpected EOF, expected factor")))?;
         match token.value.as_str() {
             "[" => {
                 let term = self.parse_term()?;
                 self.current += 1;
-                let close = self.next().ok_or(Error::UnexpectedEndOfFile)?;
+                let close = self.next().ok_or(Error::UnexpectedEndOfFile(format!("Unexpected EOF, expected ]")))?;
                 if close.value != "]" {
                     return Err(Error::UnexpectedToken(close));
                 }
@@ -156,7 +156,7 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use crate::scanner::{scan, Token};
+    use crate::scanner::{scan};
 
     #[test]
     fn parses_simple_addition() {
@@ -199,6 +199,24 @@ mod tests {
                 }
             }
             _ => panic!("Expected Term, got {:?}", cycles[0]),
+        }
+    }
+
+    #[test]
+    fn parses_definitions() {
+        let tokens = scan("def a = 1.").unwrap();
+        let mut parser = super::Parser::new(tokens);
+        let cycles = parser.parse().unwrap();
+        assert_eq!(cycles.len(), 1);
+        match cycles[0] {
+            super::Cycle::Definition(ref name, ref factor) => {
+                assert_eq!(name, "a");
+                match factor {
+                    super::Factor::Integer(super::Value::Integer(1), _) => {}
+                    _ => panic!("Expected 1, got {:?}", factor),
+                }
+            }
+            _ => panic!("Expected Definition, got {:?}", cycles[0]),
         }
     }
 }
