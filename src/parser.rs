@@ -25,6 +25,25 @@ pub enum Factor {
     Quotation(Vec<Factor>),
 }
 
+impl Factor {
+    pub fn token(&self) -> Token {
+        match self {
+            Factor::Dup(token) => token.clone(),
+            Factor::Drop(token) => token.clone(),
+            Factor::Quote(token) => token.clone(),
+            Factor::Call(token) => token.clone(),
+            Factor::Cat(token) => token.clone(),
+            Factor::Swap(token) => token.clone(),
+            Factor::Ifte(token) => token.clone(),
+            Factor::Int(_, token) => token.clone(),
+            Factor::Bool(_, token) => token.clone(),
+            Factor::String(_, token) => token.clone(),
+            Factor::Identifier(_, token) => token.clone(),
+            Factor::Quotation(factors) => factors.first().unwrap().token(),
+        }
+    }
+}
+
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum TypeAnnotation {
     Function(Vec<TypeAnnotation>, Vec<TypeAnnotation>, Token, Token),

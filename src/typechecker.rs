@@ -100,27 +100,8 @@ impl TypeChecker {
                 Type::Int => out_stack.push(t),
                 Type::Bool => out_stack.push(t),
                 Type::String => out_stack.push(t),
-                Type::Function(t_in, mut t_out) => {
-                    for t_expected in t_in.into_iter().rev() {
-                        if out_stack.len() == 0 {
-                            in_stack.push(t_expected);
-                        } else {
-                            let t_actual = out_stack.pop().unwrap();
-                            if let Type::Param(n_expected) = t_expected {
-                                if let Type::Param(n_actual) = t_actual {
-                                    t_out.iter_mut().for_each(|el| {
-                                        match el {
-                                            Type::Param(n) if n == &n_expected => {
-                                                *el = Type::Param(n_actual);
-                                            },
-                                            _ => {},
-                                        }
-                                    });
-                                }
-                            }
-                        }
-                    }
-                    out_stack.extend(t_out.into_iter());
+                Type::Function(t_in, t_out) => {
+                    Self::concat_function(&mut in_stack, &mut out_stack, t_in, t_out);
                 }
             }
         }
@@ -174,6 +155,29 @@ impl TypeChecker {
                 self.check_term(term)
             }
         }
+    }
+
+    fn concat_function(in_stack: &mut Vec<Type>, out_stack: &mut Vec<Type>, t_in: Vec<Type>, mut t_out: Vec<Type>) {
+        for t_expected in t_in.into_iter().rev() {
+            if out_stack.len() == 0 {
+                in_stack.push(t_expected);
+            } else {
+                let t_actual = out_stack.pop().unwrap();
+                if let Type::Param(n_expected) = t_expected {
+                    if let Type::Param(n_actual) = t_actual {
+                        t_out.iter_mut().for_each(|el| {
+                            match el {
+                                Type::Param(n) if n == &n_expected => {
+                                    *el = Type::Param(n_actual);
+                                },
+                                _ => {},
+                            }
+                        });
+                    }
+                }
+            }
+        }
+        out_stack.extend(t_out.into_iter());
     }
 }
 
