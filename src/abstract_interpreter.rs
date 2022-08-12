@@ -71,8 +71,7 @@ impl AbstractInterpreter {
                 Ok(())
             }
             Factor::Call(_) => {
-                let a= self.pop();
-                self.call_as_function(a)
+                self.call()
             }
             Factor::Cat(_) => { unimplemented!() }
             Factor::Swap(_) => { unimplemented!() }
@@ -90,7 +89,8 @@ impl AbstractInterpreter {
         }
     }
 
-    fn call_as_function(&mut self, a: Type) -> Result<(), Error> {
+    fn call(&mut self) -> Result<(), Error> {
+        let a= self.pop();
         match a {
             Type::Function(t_in, t_out) => {
                 let mut learned: HashMap<usize, Type> = HashMap::new();
@@ -98,12 +98,13 @@ impl AbstractInterpreter {
                     let t_actual = self.pop();
                     if let Type::Param(in_p) = t_expected {
                         learned.insert(*in_p, t_actual);
+                    } else if let Type::Function(t_in, t_out) = t_expected {
+                        if let [Type::Param(in_p)] = t_in[..] {
+                            learned.insert(in_p, t_actual);
+                        }
                     } else {
                         if t_expected != &t_actual {
-                            return Err(Error::TypeError(
-                                format!("Expected {:?} but got {:?}", t_expected, t_actual),
-                                Token::unknown(),
-                            ));
+                            panic!("Expected {:?} but got {:?}", t_expected, t_actual)
                         }
                     }
                 }
@@ -127,7 +128,11 @@ impl AbstractInterpreter {
                 Ok(())
             }
             Type::Param(param) => {
-                // TODO: Somehow learn that this should be a function
+                let t_in = self.in_stack.pop().unwrap();
+                let t_out = self.new_param();
+                self.in_stack.push(t_in.clone());
+                self.in_stack.push(Type::Function(vec![t_in], vec![t_out.clone()]));
+                self.out_stack.push(t_out);
                 Ok(())
             }
             _ => panic!("Expected function"),
@@ -288,10 +293,30 @@ mod tests {
     }
 
     #[test]
+    fn quote_call_by_itself() {
+        let input = "[call]";
+        let actual = interpret(input).unwrap();
+        let expected = Type::Function(vec![], vec![Type::Function(
+            vec![
+                Type::Param(0),
+                Type::Function(vec![Type::Param(0)], vec![Type::Param(1)]),
+            ],
+            vec![Type::Param(1)],
+        )]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn call_with_parameter() {
         let input = "call";
         let actual = interpret(input).unwrap();
-        let expected = Type::Function(vec![Type::Param(0)], vec![]);
+        let expected = Type::Function(
+            vec![
+                Type::Param(0),
+                Type::Function(vec![Type::Param(0)], vec![Type::Param(1)]),
+            ],
+            vec![Type::Param(1)],
+        );
         assert_eq!(actual, expected);
     }
 
